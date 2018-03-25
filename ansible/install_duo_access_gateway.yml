@@ -1,0 +1,64 @@
+---
+
+- hosts: dag.example.com
+
+  tasks:
+    - name: Update repositories and upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: yes
+
+    - name: Install docker pre-reqs ca-certificates, apt-transport-https, curl
+      apt:
+        name:
+          - ca-certificates
+          - apt-transport-https
+          - curl
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key: url=https://download.docker.com/linux/ubuntu/gpg
+
+    - name: Add Docker repo
+      apt_repository: repo='deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable' state=present
+
+    - name: Update repositories and install Docker
+      apt:
+        update_cache: yes
+        name: docker-ce
+        state: latest
+
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/1.19.0/docker-compose-Linux-x86_64"
+        dest: "/usr/local/bin/docker-compose"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+
+    - name: Download latest DAG yml config
+      get_url:
+        url: "https://dl.duosecurity.com/access-gateway-latest.yml"
+        dest: "/opt/"
+
+    - name: Get latest DAG yml file name
+      shell: "find /opt/ -name access-gateway-*"
+      register: dag_yml_filename
+      changed_when: False
+
+    - name: Use Docker Compose to download and run DAG
+      shell: "docker-compose -p access-gateway -f {{ dag_yml_filename.stdout }} up -d"
+      register: dag_deployment
+      args:
+        creates: /opt/install_dag_playbook_complete
+
+    - name: Wait for Docker Compose deployment to finish
+      wait_for:
+        timeout: 30
+      when: dag_deployment | changed
+
+    - name: Create a file to mark whether this playbook has completed
+      file:
+        path: /opt/install_dag_playbook_complete
+        state: touch
+      when: dag_deployment | changed and '"Creating access-gateway" in dag_deployment.stderr'
