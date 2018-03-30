@@ -32,7 +32,7 @@ else
     echo "$date_format Cannot diff config files, folder not found in $backup_dir_tmp" >> $config_sync_log
 fi
 
-# Replicate changes to dest servers if changes are detected
+# Copy config to access-gateway docker instance if changes are detected
 if [ "$config_changed" = true ]
 then
     /usr/bin/docker cp $backup_dir_tmp/. access-gateway:data
